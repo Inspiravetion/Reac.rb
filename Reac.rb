@@ -7,16 +7,24 @@ class Reac
   #Class Variables
   #--------------------------------------------------------------------------
   Ops = Operations.new(
-    Proc.new { |a, b|  a.val + b.val },
-    Proc.new { |a, b|  a.val - b.val },
-    Proc.new { |a, b|  a.val * b.val },
-    Proc.new { |a, b|  a.val / b.val },
-    Proc.new { |a, b|  a.val % b.val }
+    Proc.new { |a, b|  Reac.get_value(a) + Reac.get_value(b) },
+    Proc.new { |a, b|  Reac.get_value(a) - Reac.get_value(b) },
+    Proc.new { |a, b|  Reac.get_value(a) * Reac.get_value(b) },
+    Proc.new { |a, b|  Reac.get_value(a) / Reac.get_value(b) },
+    Proc.new { |a, b|  Reac.get_value(a) % Reac.get_value(b) }
   )
 
+  #let users define their own operation procs to use so that they can have nodes updated
+  #that way
+  
   #Setup
   #--------------------------------------------------------------------------
   attr_accessor(:val)
+
+  def coerce(other)
+    @coerced = true
+    return [self, other]
+  end
 
   #API
   #--------------------------------------------------------------------------
@@ -28,12 +36,13 @@ class Reac
     @children = []
     @is_root_of_update = true
     @is_last_trace = false
+    @coerced = false
   end
 
   def onChange(proc)
     @onChange = proc
   end
-
+ 
   def val=(val)
     @val = val
     @children.each_with_index do |child, i| 
@@ -47,11 +56,20 @@ class Reac
 
   # Mutators---------------------------
   
+  # have a way for people to register how they want their defined type to be evaluated
+
   def +(other)
+    if not other.kind_of? Reac 
+      then return handle_primitive(self.val + other, Ops.add, other) 
+    end
     overload_operator(self.val + other.val, Ops.add, other)
   end
 
   def -(other)
+    if not other.kind_of? Reac 
+      if @coerced then return handle_primitive(other - self.val, Ops.sub, other)
+      else return handle_primitive(self.val - other, Ops.sub, other) end 
+    end
     overload_operator(self.val - other.val, Ops.sub, other)
   end
 
@@ -60,15 +78,24 @@ class Reac
   end
 
   def /(other)
+    if not other.kind_of? Reac 
+      if @coerced then return handle_primitive(other / self.val, Ops.sub, other)
+      else return handle_primitive(self.val / other, Ops.sub, other) end 
+    end
     overload_operator(self.val / other.val, Ops.div, other)
   end
 
   def %(other)
+    if not other.kind_of? Reac 
+      if @coerced then return handle_primitive(other % self.val, Ops.sub, other)
+      else return handle_primitive(self.val % other, Ops.sub, other) end 
+    end
     overload_operator(self.val % other.val, Ops.mod, other)
   end
 
   # Comparison-------------------------
   
+  #still need to handle coerced case for this
   def ==(other)
     self.val == other.val
   end
@@ -99,12 +126,12 @@ class Reac
 
   def update(last)
     @is_root_of_update = false
-    if last then @is_last_trace = true end #reset 
+    if last then @is_last_trace = true end  
     self.val = @operation.call(@parents.a, @parents.b)
     if last then
       if @onChange then @onChange.call(@val) end
-        @is_last_trace = false
-        @is_root_of_update = true
+      @is_last_trace = false
+      @is_root_of_update = true
     end
   end
 
@@ -135,9 +162,26 @@ class Reac
     return temp
   end
 
-  def overload_operator(value, operator, other)
-    temp = Reac.new(value, operator)
+  def link_primitive(temp, prim)
+    temp.parents = @coerced ? Parents.new(prim, self) : Parents.new(self, prim)
+    self.children.push(temp)
+    @coerced = false
+    return temp
+  end
+
+  def overload_operator(value, operation, other)
+    temp = Reac.new(value, operation)
     link(temp, other)
+  end
+
+  def handle_primitive(value, operation, prim)
+    temp = Reac.new(value, operation)
+    link_primitive(temp, prim)
+  end
+
+  def self.get_value(obj)
+    if obj.kind_of? Reac then return obj.val end
+    obj
   end
 
 end
@@ -147,7 +191,7 @@ end
 b = Reac.new(3.0)
 c = Reac.new(4.0)
 
-a = (b + c) * b / c
+a = 100 - ( (b + c) * b / c ) - 1
 a.onChange(Proc.new { || puts('a changed!!!') })
 
 puts(a.val)
