@@ -26,6 +26,8 @@ class Reac
     @operation = opp
     @onChange = nil
     @children = []
+    @is_root_of_update = true
+    @is_last_trace = false
   end
 
   def onChange(proc)
@@ -34,39 +36,76 @@ class Reac
 
   def val=(val)
     @val = val
-    @children.each do |child| child.update() end #maybe pass a bool saying if this is the last child to be updated
-    if @onChange then @onChange.call(@val) end
+    @children.each_with_index do |child, i| 
+      if (@is_root_of_update or @is_last_trace) and @children.last.equal? @children[i]
+        then child.update(true) 
+        else child.update(false) 
+      end
+    end
+    if @is_root_of_update and @onChange then @onChange.call(@val) end
   end
 
+  # Mutators---------------------------
+  
   def +(other)
-    op(self.val + other.val, Ops.add, other)
+    overload_operator(self.val + other.val, Ops.add, other)
   end
 
   def -(other)
-    op(self.val - other.val, Ops.sub, other)
+    overload_operator(self.val - other.val, Ops.sub, other)
   end
 
   def *(other)
-    op(self.val * other.val, Ops.mul, other)
+    overload_operator(self.val * other.val, Ops.mul, other)
   end
 
   def /(other)
-    op(self.val / other.val, Ops.div, other)
+    overload_operator(self.val / other.val, Ops.div, other)
   end
 
   def %(other)
-    op(self.val % other.val, Ops.mod, other)
+    overload_operator(self.val % other.val, Ops.mod, other)
   end
 
-  # figure out expected behaviour on this one
-  # def +=(other) end 
+  # Comparison-------------------------
+  
+  def ==(other)
+    self.val == other.val
+  end
+
+  def <=(other)
+    self.val <= other.val
+  end
+
+  def >=(other)
+    self.val >= other.val
+  end
+
+  def <=>(other)
+    self.val <=> other.val
+  end
+
+  def <(other)
+    self.val < other.val
+  end
+
+  def >(other)
+    self.val > other.val
+  end
   
   #Internals
   #--------------------------------------------------------------------------
   protected
 
-  def update
+  def update(last)
+    @is_root_of_update = false
+    if last then @is_last_trace = true end #reset 
     self.val = @operation.call(@parents.a, @parents.b)
+    if last then
+      if @onChange then @onChange.call(@val) end
+        @is_last_trace = false
+        @is_root_of_update = true
+    end
   end
 
   def parents
@@ -96,7 +135,7 @@ class Reac
     return temp
   end
 
-  def op(value, operator, other)
+  def overload_operator(value, operator, other)
     temp = Reac.new(value, operator)
     link(temp, other)
   end
@@ -108,10 +147,11 @@ end
 b = Reac.new(3.0)
 c = Reac.new(4.0)
 
-a = (b + c) #* b / c
+a = (b + c) * b / c
 a.onChange(Proc.new { || puts('a changed!!!') })
 
 puts(a.val)
 b.val = 4.0
 puts(a.val)
 c.val = 2
+puts(a.val)
