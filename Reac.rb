@@ -65,6 +65,13 @@ class Reac
     overload_operator(self.val + other.val, Ops.add, other)
   end
 
+  def *(other)
+    if not other.kind_of? Reac 
+      then return handle_primitive(self.val * other, Ops.mul, other) 
+    end
+    overload_operator(self.val * other.val, Ops.mul, other)
+  end
+
   def -(other)
     if not other.kind_of? Reac 
       if @coerced then return handle_primitive(other - self.val, Ops.sub, other)
@@ -73,22 +80,18 @@ class Reac
     overload_operator(self.val - other.val, Ops.sub, other)
   end
 
-  def *(other)
-    overload_operator(self.val * other.val, Ops.mul, other)
-  end
-
   def /(other)
     if not other.kind_of? Reac 
-      if @coerced then return handle_primitive(other / self.val, Ops.sub, other)
-      else return handle_primitive(self.val / other, Ops.sub, other) end 
+      if @coerced then return handle_primitive(other / self.val, Ops.div, other)
+      else return handle_primitive(self.val / other, Ops.div, other) end 
     end
     overload_operator(self.val / other.val, Ops.div, other)
   end
 
   def %(other)
     if not other.kind_of? Reac 
-      if @coerced then return handle_primitive(other % self.val, Ops.sub, other)
-      else return handle_primitive(self.val % other, Ops.sub, other) end 
+      if @coerced then return handle_primitive(other % self.val, Ops.mod, other)
+      else return handle_primitive(self.val % other, Ops.mod, other) end 
     end
     overload_operator(self.val % other.val, Ops.mod, other)
   end
@@ -99,6 +102,10 @@ class Reac
     Reac.get_value(self) == Reac.get_value(other)
   end
 
+  def <=>(other)
+    Reac.get_value(self) <=> Reac.get_value(other)
+  end
+
   def <=(other)
     a , b = resolve_coercion(Reac.get_value(self), Reac.get_value(other))
     a <= b
@@ -107,10 +114,6 @@ class Reac
   def >=(other)
     a , b = resolve_coercion(Reac.get_value(self), Reac.get_value(other))
     a >= b
-  end
-
-  def <=>(other)
-    Reac.get_value(self) <=> Reac.get_value(other)
   end
 
   def <(other)
