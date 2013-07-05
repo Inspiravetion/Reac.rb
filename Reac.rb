@@ -22,7 +22,7 @@ class Reac
 	end
 
 	def update()
-		@val = @operation.call(@parents.a, @parents.b)
+		self.val = @operation.call(@parents.a, @parents.b)
 		puts("got updated to new value #{val}")
 	end
 
@@ -86,7 +86,7 @@ end
 b = Reac.new(3.0)
 c = Reac.new(4.0)
 
-a = (b + c) * b #/ c
+a = (b + c) * b / c
 
 puts(a.val)
 b.val = 4.0
