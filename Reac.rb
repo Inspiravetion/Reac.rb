@@ -95,29 +95,32 @@ class Reac
 
   # Comparison-------------------------
   
-  #still need to handle coerced case for this
   def ==(other)
-    self.val == other.val
+    Reac.get_value(self) == Reac.get_value(other)
   end
 
   def <=(other)
-    self.val <= other.val
+    a , b = resolve_coercion(Reac.get_value(self), Reac.get_value(other))
+    a <= b
   end
 
   def >=(other)
-    self.val >= other.val
+    a , b = resolve_coercion(Reac.get_value(self), Reac.get_value(other))
+    a >= b
   end
 
   def <=>(other)
-    self.val <=> other.val
+    Reac.get_value(self) <=> Reac.get_value(other)
   end
 
   def <(other)
-    self.val < other.val
+    a , b = resolve_coercion(Reac.get_value(self), Reac.get_value(other))
+    a < b
   end
 
   def >(other)
-    self.val > other.val
+    a , b = resolve_coercion(Reac.get_value(self), Reac.get_value(other))
+    a > b
   end
   
   #Internals
@@ -155,6 +158,11 @@ class Reac
   #--------------------------------------------------------------------------
   private 
 
+  def self.get_value(obj)
+    if obj.kind_of? Reac then return obj.val end
+    obj
+  end
+
   def link(temp, other)
     temp.parents = Parents.new(self, other)
     self.children.push(temp)
@@ -179,9 +187,10 @@ class Reac
     link_primitive(temp, prim)
   end
 
-  def self.get_value(obj)
-    if obj.kind_of? Reac then return obj.val end
-    obj
+  def resolve_coercion(a, b)
+    if not @coerced then return a , b end
+    @coerced = false
+    return b , a
   end
 
 end
@@ -199,3 +208,7 @@ b.val = 4.0
 puts(a.val)
 c.val = 2
 puts(a.val)
+puts(a < 100)
+puts(100 > a)
+puts(a < b)
+puts(b > a)
