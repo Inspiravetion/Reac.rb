@@ -1,4 +1,6 @@
+
 Parents = Struct.new(:a, :b)
+
 Operations = Struct.new(:add, :sub, :mul, :div, :mod)
 
 Ops = Operations.new(
@@ -11,8 +13,12 @@ Ops = Operations.new(
 
 class Reac 
 
-	attr_accessor(:val, :parents, :children)
+	#Setup
+	#--------------------------------------------------------------------------
+	attr_accessor(:val)
 
+	#API
+	#--------------------------------------------------------------------------
 	def initialize(val, opp = nil) 
 		@val = val
 		@parents = Parents.new(nil, nil)
@@ -21,24 +27,66 @@ class Reac
 		@children = []
 	end
 
-	def update()
-		self.val = @operation.call(@parents.a, @parents.b)
-		puts("got updated to new value #{val}")
-	end
-
 	def onChange(proc)
 		@onChange = proc
 	end
 
 	def val=(val)
 		@val = val
-		if @onChange
-			@onChange.call(@val)
-		end
-		@children.each do |child| 
-			child.update()
-		end
+		@children.each do |child| child.update() end #maybe pass a bool saying if this is the last child to be updated
+		if @onChange then @onChange.call(@val) end
 	end
+
+	def +(other)
+		op(self.val + other.val, Ops.add, other)
+	end
+
+	def -(other)
+		op(self.val - other.val, Ops.sub, other)
+	end
+
+	def *(other)
+		op(self.val * other.val, Ops.mul, other)
+	end
+
+	def /(other)
+		op(self.val / other.val, Ops.div, other)
+	end
+
+	def %(other)
+		op(self.val % other.val, Ops.mod, other)
+	end
+
+	# figure out expected behaviour on this one
+	# def +=(other) end 
+	
+	#Internals
+	#--------------------------------------------------------------------------
+	protected
+
+	def update
+		self.val = @operation.call(@parents.a, @parents.b)
+	end
+
+	def parents
+		@parents
+	end
+
+	def parents=(other)
+		@parents = other
+	end
+
+	def children
+		@children
+	end
+
+	def children=(other)
+		@children = other
+	end
+
+	#Helpers
+	#--------------------------------------------------------------------------
+	private 
 
 	def link(temp, other)
 		temp.parents = Parents.new(self, other)
@@ -47,38 +95,11 @@ class Reac
 		return temp
 	end
 
-	def +(other)
-		temp = Reac.new(self.val + other.val, Ops.add)
+	def op(value, operator, other)
+		temp = Reac.new(value, operator)
 		link(temp, other)
 	end
 
-	def -(other)
-		temp = Reac.new(self.val - other.val, Ops.sub)
-		link(temp, other)
-	end
-
-	def *(other)
-		temp = Reac.new(self.val * other.val, Ops.mul)
-		link(temp, other)
-	end
-
-	def /(other)
-		temp = Reac.new(self.val / other.val, Ops.div)
-		link(temp, other)
-	end
-
-	def %(other)
-		temp = Reac.new(self.val % other.val, Ops.mod)
-		link(temp, other)
-	end
-
-	# def +=(other) #this should be a hard one
-	# 	temp = Reac.new(
-	# 		self.val / other.val, 
-	# 		Proc.new { |a, b|  a.val / b.val }
-	# 	)
-	# 	link(temp, other)
-	# end
 end
 
 # Testing
@@ -86,8 +107,10 @@ end
 b = Reac.new(3.0)
 c = Reac.new(4.0)
 
-a = (b + c) * b / c
+a = (b + c) #* b / c
+a.onChange(Proc.new { || puts('a changed!!!') })
 
 puts(a.val)
 b.val = 4.0
 puts(a.val)
+c.val = 2
