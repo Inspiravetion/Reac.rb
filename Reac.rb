@@ -1,17 +1,18 @@
 
-Parents = Struct.new(:a, :b)
-
+Parents    = Struct.new(:a, :b)
 Operations = Struct.new(:add, :sub, :mul, :div, :mod)
 
-Ops = Operations.new(
-  Proc.new { |a, b|  a.val + b.val },
-  Proc.new { |a, b|  a.val - b.val },
-  Proc.new { |a, b|  a.val * b.val },
-  Proc.new { |a, b|  a.val / b.val },
-  Proc.new { |a, b|  a.val % b.val }
-)
-
 class Reac 
+
+  #Class Variables
+  #--------------------------------------------------------------------------
+  Ops = Operations.new(
+    Proc.new { |a, b|  a.val + b.val },
+    Proc.new { |a, b|  a.val - b.val },
+    Proc.new { |a, b|  a.val * b.val },
+    Proc.new { |a, b|  a.val / b.val },
+    Proc.new { |a, b|  a.val % b.val }
+  )
 
   #Setup
   #--------------------------------------------------------------------------
