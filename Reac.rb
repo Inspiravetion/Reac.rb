@@ -1,6 +1,31 @@
 
 Parents    = Struct.new(:a, :b)
+
 Operations = Struct.new(:add, :sub, :mul, :div, :mod)
+
+Conditional_Event = Struct.new(:condition) do
+  
+  def initialize(c = nil)
+    condition = c
+  end
+
+  def when(proc)
+    condition = proc
+  end
+
+end
+
+Handler = Struct.new(:callback) do
+
+  def initialize(c = nil)
+    callback = c
+  end
+
+  def execute(proc)
+    callback = proc
+  end
+
+end
 
 class Reac 
 
@@ -13,6 +38,9 @@ class Reac
     Proc.new { |a, b|  Reac.get_value(a) / Reac.get_value(b) },
     Proc.new { |a, b|  Reac.get_value(a) % Reac.get_value(b) }
   )
+
+  global_events = {}
+  global_handlers = {}
 
   ## have a way for people to register how they want their defined type to be evaluated
   # 
@@ -28,7 +56,7 @@ class Reac
   # Let people define reusable events that will fire on predfined conditions
   # Reac.fire(:symbol).when(Proc.new { |a| a.iseven? })
   # 
-  # c.attach_event(:symbol)                                                     this-|
+  # c.arm_event(:symbol)                                                     this-|
   #                                                                                  |
                                                                                     #|
   #Let people register events on variables in line or using globally defined events  |
@@ -61,6 +89,8 @@ class Reac
     @operation = opp
     @onChange = nil
     @children = []
+    @events = {}
+    @handlers = {}
     @is_root_of_update = true
     @is_last_trace = false
     @coerced = false
@@ -153,6 +183,43 @@ class Reac
   def >(other)
     a , b = resolve_coercion(Reac.get_value(self), Reac.get_value(other))
     a > b
+  end
+
+  # Event Hook Registration
+  #--------------------------------------------------------------------------
+  
+  def self.fire(symbol)
+    c_event = Conditional_Event.new()
+    global_events[symbol] = c_event
+    c_event
+  end
+
+  def self.on(symbol)
+    handler = Handler.new()
+    global_handlers[symbol] ||= []
+    global_handlers[symbol].push(handler)
+    handler
+  end
+
+  def arm_event(symbol)
+    @events[symbol] = global_events[symbol]
+  end
+
+  def arm_handler(symbol)
+    @handlers[symbol] = global_handlers[symbol]
+  end
+
+  def fire(symbol)
+    c_event = Conditional_Event.new()
+    @events[symbol] = c_event
+    c_event
+  end
+
+  def on(symbol)
+    handler = Handler.new()
+    @handlers[symbol] ||= []
+    @handlers[symbol].push(handler)
+    handler
   end
   
   #Internals
