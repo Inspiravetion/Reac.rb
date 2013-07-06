@@ -14,9 +14,36 @@ class Reac
     Proc.new { |a, b|  Reac.get_value(a) % Reac.get_value(b) }
   )
 
-  #let users define their own operation procs to use so that they can have nodes updated
-  #that way
+  ## have a way for people to register how they want their defined type to be evaluated
+  # 
+  # Reac.register_operation(:symbol, Proc.new { |a , b| 
+  #   puts 'your functionality here...'
+  # })
+  # 
+  # a = Reac.new(2)
+  # b = Reac.new(3)
+  # 
+  # c = Reac.symbol(a, b)
   
+  # Let people define reusable events that will fire on predfined conditions
+  # Reac.fire(:symbol).when(Proc.new { |a| a.iseven? })
+  # 
+  # c.attach_event(:symbol)                                                     this-|
+  #                                                                                  |
+                                                                                    #|
+  #Let people register events on variables in line or using globally defined events  |
+  #                                                                                  |
+  # a = Reac.new(2)                                                                  |
+  # b = Reac.new(3)                                                                  |
+  #                                                                                  |
+  # c = a + b                                                                        |
+  #                                                                                  | 
+  # if no proc given , this acts as onchange...should probably remove on change      |
+  # c.fire(:event_name).when(Proc.new { |a| a.iseven? })     <- and this are same thing
+  # 
+  # listen for event...globally defined or otherwise
+  # c.on(:event_name).execute(Proc.new { |a| puts 'do something with your updated value' })
+
   #Setup
   #--------------------------------------------------------------------------
   attr_accessor(:val)
@@ -55,9 +82,8 @@ class Reac
   end
 
   # Mutators---------------------------
-  
-  # have a way for people to register how they want their defined type to be evaluated
 
+  ### Commutative ###
   def +(other)
     if not other.kind_of? Reac 
       then return handle_primitive(self.val + other, Ops.add, other) 
@@ -72,6 +98,7 @@ class Reac
     overload_operator(self.val * other.val, Ops.mul, other)
   end
 
+  ### Non-Commutative ###
   def -(other)
     if not other.kind_of? Reac 
       if @coerced then return handle_primitive(other - self.val, Ops.sub, other)
@@ -98,6 +125,7 @@ class Reac
 
   # Comparison-------------------------
   
+  ### Commutative ###
   def ==(other)
     Reac.get_value(self) == Reac.get_value(other)
   end
@@ -106,6 +134,7 @@ class Reac
     Reac.get_value(self) <=> Reac.get_value(other)
   end
 
+  ### Non-Commutative ###
   def <=(other)
     a , b = resolve_coercion(Reac.get_value(self), Reac.get_value(other))
     a <= b
