@@ -6,11 +6,11 @@ Operations = Struct.new(:add, :sub, :mul, :div, :mod)
 Conditional_Event = Struct.new(:condition) do
   
   def initialize(c = nil)
-    condition = c
+    self.condition = c
   end
 
   def when(proc)
-    condition = proc
+    self.condition = proc
   end
 
 end
@@ -18,11 +18,17 @@ end
 Handler = Struct.new(:callback) do
 
   def initialize(c = nil)
-    callback = c
+    self.callback = c
   end
 
   def execute(proc)
-    callback = proc
+    self.callback = proc
+  end 
+
+  def exec(data)
+    if self.callback
+      self.callback.call(data)
+    end
   end
 
 end
@@ -90,7 +96,7 @@ class Reac
     @onChange = nil
     @children = []
     @events = {}
-    @handlers = {}
+    @handlers = Hash.new {|hash, key| hash[key] = [] }
     @is_root_of_update = true
     @is_last_trace = false
     @coerced = false
@@ -185,8 +191,8 @@ class Reac
     a > b
   end
 
-  # Event Hook Registration
-  #--------------------------------------------------------------------------
+  # Event Hook 
+  #------------------------------------
   
   def self.fire(symbol)
     c_event = Conditional_Event.new()
@@ -196,7 +202,6 @@ class Reac
 
   def self.on(symbol)
     handler = Handler.new()
-    global_handlers[symbol] ||= []
     global_handlers[symbol].push(handler)
     handler
   end
@@ -217,7 +222,6 @@ class Reac
 
   def on(symbol)
     handler = Handler.new()
-    @handlers[symbol] ||= []
     @handlers[symbol].push(handler)
     handler
   end
@@ -231,9 +235,9 @@ class Reac
     if last then @is_last_trace = true end  
     self.val = @operation.call(@parents.a, @parents.b)
     if last then
-      if @onChange then @onChange.call(@val) end
       @is_last_trace = false
       @is_root_of_update = true
+      emit_events
     end
   end
 
@@ -292,15 +296,32 @@ class Reac
     return b , a
   end
 
+  def emit_events
+    @events.keys.each do |key|
+      event = @events[key]
+      if event.condition.nil? or event.condition.call(self.val)
+        emit(key)
+      end
+    end
+  end
+
+  def emit(name)
+    @handlers[name].each do |cb|
+      cb.exec(self.val)
+    end
+  end
+
 end
 
 # Testing
 # -----------------------------------------------
+
 b = Reac.new(3.0)
 c = Reac.new(4.0)
 
 a = 100 - ( (b + c) * b / c ) - 1
-a.onChange(Proc.new { || puts('a changed!!!') })
+a.fire(:trial).when(Proc.new { |val| val < 90 })
+a.on(:trial).execute(Proc.new { || puts('a shrunk under 90!!!') })
 
 puts(a.val)
 b.val = 4.0
