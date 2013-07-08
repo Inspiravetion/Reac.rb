@@ -64,6 +64,7 @@ class Reac
   # 
   # c.arm_event(:symbol)                                                     
 
+  # GARBAGE COLLECTION OF INTERMEDIATE NODES!!!
   #Setup
   #--------------------------------------------------------------------------
   attr_accessor(:val)
@@ -76,6 +77,8 @@ class Reac
   #API
   #--------------------------------------------------------------------------
   def initialize(val, opp = nil) 
+    #its a start...needs more work
+    ObjectSpace.define_finalizer(self, self.class.method(:finalize)) 
     @val = val
     @parents = Parents.new(nil, nil)
     @operation = opp
@@ -241,6 +244,10 @@ class Reac
   #Helpers
   #--------------------------------------------------------------------------
   private 
+
+  def self.finalize
+    # Figure out how to kick this off
+  end
 
   def self.get_value(obj)
     if obj.kind_of? Reac then return obj.val end
