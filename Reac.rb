@@ -62,21 +62,7 @@ class Reac
   # Let people define reusable events that will fire on predfined conditions
   # Reac.fire(:symbol).when(Proc.new { |a| a.iseven? })
   # 
-  # c.arm_event(:symbol)                                                     this-|
-  #                                                                                  |
-                                                                                    #|
-  #Let people register events on variables in line or using globally defined events  |
-  #                                                                                  |
-  # a = Reac.new(2)                                                                  |
-  # b = Reac.new(3)                                                                  |
-  #                                                                                  |
-  # c = a + b                                                                        |
-  #                                                                                  | 
-  # if no proc given , this acts as onchange...should probably remove on change      |
-  # c.fire(:event_name).when(Proc.new { |a| a.iseven? })     <- and this are same thing
-  # 
-  # listen for event...globally defined or otherwise
-  # c.on(:event_name).execute(Proc.new { |a| puts 'do something with your updated value' })
+  # c.arm_event(:symbol)                                                     
 
   #Setup
   #--------------------------------------------------------------------------
@@ -93,17 +79,12 @@ class Reac
     @val = val
     @parents = Parents.new(nil, nil)
     @operation = opp
-    @onChange = nil
     @children = []
     @events = {}
     @handlers = Hash.new {|hash, key| hash[key] = [] }
     @is_root_of_update = true
     @is_last_trace = false
     @coerced = false
-  end
-
-  def onChange(proc)
-    @onChange = proc
   end
  
   def val=(val)
@@ -114,7 +95,7 @@ class Reac
         else child.update(false) 
       end
     end
-    if @is_root_of_update and @onChange then @onChange.call(@val) end
+    if @is_root_of_update then emit_events end
   end
 
   # Mutators---------------------------
