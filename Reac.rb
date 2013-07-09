@@ -21,8 +21,8 @@ Handler = Struct.new(:callback) do
     self.callback = c
   end
 
-  def execute(proc)
-    self.callback = proc
+  def execute(proc = nil, &block)
+    self.callback = proc || block
   end 
 
   def exec(data)
@@ -65,6 +65,9 @@ class Reac
   # c.arm_event(:symbol)                                                     
 
   # GARBAGE COLLECTION OF INTERMEDIATE NODES!!!
+  # possibly check for other == nil in self=(other)...if you can...or expose this as a destroy()
+  # API call to clear out all of its references before they change it?...thats super tedious though
+  
   #Setup
   #--------------------------------------------------------------------------
   attr_accessor(:val)
@@ -77,13 +80,14 @@ class Reac
   #API
   #--------------------------------------------------------------------------
   def initialize(val, opp = nil) 
-    #its a start...needs more work
+    #wont work...this gets called AFTER the obj has been garbage collected...aka its useless
     ObjectSpace.define_finalizer(self, self.class.method(:finalize)) 
     @val = val
     @parents = Parents.new(nil, nil)
     @operation = opp
     @children = []
     @events = {}
+    @single_fire_events = {}
     @handlers = Hash.new {|hash, key| hash[key] = [] }
     @is_root_of_update = true
     @is_last_trace = false
@@ -179,9 +183,7 @@ class Reac
   #------------------------------------
   
   def self.fire(symbol)
-    c_event = Conditional_Event.new()
-    global_events[symbol] = c_event
-    c_event
+    _fire(global_events, symbol)
   end
 
   def self.on(symbol)
@@ -199,9 +201,11 @@ class Reac
   end
 
   def fire(symbol)
-    c_event = Conditional_Event.new()
-    @events[symbol] = c_event
-    c_event
+    _fire(@events, symbol)
+  end
+
+  def fire_once(symbol)
+    _fire(@single_fire_events, symbol)
   end
 
   def on(symbol)
@@ -285,8 +289,14 @@ class Reac
   end
 
   def emit_events
-    @events.keys.each do |key|
-      event = @events[key]
+    emit_events_from_registry(@events)
+    emit_events_from_registry(@single_fire_events)
+    @single_fire_events = {}
+  end
+
+  def emit_events_from_registry(registry)
+    registry.keys.each do |key|
+      event = registry[key]
       if event.condition.nil? or event.condition.call(self.val)
         emit(key)
       end
@@ -299,6 +309,12 @@ class Reac
     end
   end
 
+  def _fire(container, symbol)
+    c_event = Conditional_Event.new()
+    container[symbol] = c_event
+    c_event
+  end
+
 end
 
 # Testing
@@ -309,7 +325,16 @@ c = Reac.new(4.0)
 
 a = 100 - ( (b + c) * b / c ) - 1
 a.fire(:trial).when(Proc.new { |val| val < 90 })
-a.on(:trial).execute(Proc.new { || puts('a shrunk under 90!!!') })
+a.on(:trial).execute do |v|
+  p "a shrunk under 90...it is now #{v}!!!"
+end
+a.on(:trial).execute(Proc.new { p 'Proc version'})
+
+a.fire_once(:single)
+a.on(:single).execute do |val|
+  p "single got #{val}"
+end
+a.on(:single).execute lambda { |val| p "lambda got #{val}" }
 
 puts(a.val)
 b.val = 4.0
