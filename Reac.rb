@@ -16,8 +16,8 @@ Conditional_Event = Struct.new(:condition) do
     self.condition = c
   end
 
-  def when(proc)
-    self.condition = proc
+  def when(proc = nil, &block)
+    self.condition = proc || block
   end
 
 end
@@ -226,16 +226,20 @@ class Reac
   def make_collectable
     #sever connection with parents
     same_object = proc { |val| val.object_id == self.object_id }
-    @parents.a.children.delete_if same_object
-    @parents.b.children.delete_if same_object
+    if @parents.a.kind_of? Reac 
+      then @parents.a.children.delete_if &same_object end
+    if @parents.b.kind_of? Reac 
+      then @parents.b.children.delete_if &same_object end
 
     # sever connections with children
     @children.each do |child|
       child.parents.remove(self)
     end
+  end
 
-    # see if you can lose the reference from inside a function cal
-    # ...prolly not 
+  def self.dispose(reac_obj)
+    reac_obj.make_collectable
+    reac_obj = nil
   end
   
   #Internals
@@ -275,6 +279,7 @@ class Reac
 
   def self.finalize
     # Figure out how to kick this off
+    p 'i got collected'
   end
 
   def self.get_value(obj)
@@ -370,4 +375,8 @@ puts(100 > a)
 puts(a < b)
 puts(b > a)
 
-# p GC.start
+a.make_collectable
+p GC.stat
+a = nil
+GC.start
+p GC.stat 
