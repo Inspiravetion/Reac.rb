@@ -1,7 +1,14 @@
 
-Parents    = Struct.new(:a, :b)
-
 Operations = Struct.new(:add, :sub, :mul, :div, :mod)
+
+Parents = Struct.new(:a, :b) do
+
+  def remove(parent)
+    if self.a.object_id == parent.object_id then self.a = nil end        
+    if self.b.object_id == parent.object_id then self.b = nil end        
+  end
+
+end
 
 Conditional_Event = Struct.new(:condition) do
   
@@ -34,6 +41,8 @@ Handler = Struct.new(:callback) do
 end
 
 class Reac 
+
+  include GC 
 
   #Class Variables
   #--------------------------------------------------------------------------
@@ -213,6 +222,21 @@ class Reac
     @handlers[symbol].push(handler)
     handler
   end
+
+  def make_collectable
+    #sever connection with parents
+    same_object = proc { |val| val.object_id == self.object_id }
+    @parents.a.children.delete_if same_object
+    @parents.b.children.delete_if same_object
+
+    # sever connections with children
+    @children.each do |child|
+      child.parents.remove(self)
+    end
+
+    # see if you can lose the reference from inside a function cal
+    # ...prolly not 
+  end
   
   #Internals
   #--------------------------------------------------------------------------
@@ -345,3 +369,5 @@ puts(a < 100)
 puts(100 > a)
 puts(a < b)
 puts(b > a)
+
+# p GC.start
