@@ -4,8 +4,8 @@ Operations = Struct.new(:add, :sub, :mul, :div, :mod)
 Parents = Struct.new(:a, :b) do
 
   def remove(parent)
-    if self.a.object_id == parent.object_id then self.a = nil end        
-    if self.b.object_id == parent.object_id then self.b = nil end        
+    if self.a.equal? parent then self.a = nil end        
+    if self.b.equal? parent then self.b = nil end        
   end
 
 end
@@ -54,8 +54,8 @@ class Reac
     Proc.new { |a, b|  Reac.get_value(a) % Reac.get_value(b) }
   )
 
-  global_events = {}
-  global_handlers = {}
+  Global_Events = {}
+  Global_Event_Types = {}
 
   ## have a way for people to register how they want their defined type to be evaluated
   # 
@@ -66,12 +66,7 @@ class Reac
   # a = Reac.new(2)
   # b = Reac.new(3)
   # 
-  # c = Reac.symbol(a, b)
-  
-  # Let people define reusable events that will fire on predfined conditions
-  # Reac.fire(:symbol).when(Proc.new { |a| a.iseven? })
-  # 
-  # c.arm_event(:symbol)                                                     
+  # c = Reac.symbol(a, b)                                              
 
   # GARBAGE COLLECTION OF INTERMEDIATE NODES!!!
   # possibly check for other == nil in self=(other)...if you can...or expose this as a destroy()
@@ -90,7 +85,7 @@ class Reac
   #--------------------------------------------------------------------------
   def initialize(val, opp = nil) 
     #wont work...this gets called AFTER the obj has been garbage collected...aka its useless
-    ObjectSpace.define_finalizer(self, self.class.method(:finalize)) 
+    # ObjectSpace.define_finalizer(self, proc {|id| p "#{id} was collected"}) 
     @val = val
     @parents = Parents.new(nil, nil)
     @operation = opp
@@ -101,6 +96,20 @@ class Reac
     @is_root_of_update = true
     @is_last_trace = false
     @coerced = false
+  end
+
+  def make_collectable
+    #sever connection with parents
+    same_object = proc { |val| val.equal? self }
+    if @parents.a.is_a? Reac 
+      then @parents.a.children.delete_if &same_object end
+    if @parents.b.is_a? Reac 
+      then @parents.b.children.delete_if &same_object end
+
+    # sever connections with children
+    @children.each do |child|
+      child.parents.remove(self)
+    end
   end
  
   def val=(val)
@@ -118,14 +127,14 @@ class Reac
 
   ### Commutative ###
   def +(other)
-    if not other.kind_of? Reac 
+    if not other.is_a? Reac 
       then return handle_primitive(self.val + other, Ops.add, other) 
     end
     overload_operator(self.val + other.val, Ops.add, other)
   end
 
   def *(other)
-    if not other.kind_of? Reac 
+    if not other.is_a? Reac 
       then return handle_primitive(self.val * other, Ops.mul, other) 
     end
     overload_operator(self.val * other.val, Ops.mul, other)
@@ -133,7 +142,7 @@ class Reac
 
   ### Non-Commutative ###
   def -(other)
-    if not other.kind_of? Reac 
+    if not other.is_a? Reac 
       if @coerced then return handle_primitive(other - self.val, Ops.sub, other)
       else return handle_primitive(self.val - other, Ops.sub, other) end 
     end
@@ -141,7 +150,7 @@ class Reac
   end
 
   def /(other)
-    if not other.kind_of? Reac 
+    if not other.is_a? Reac 
       if @coerced then return handle_primitive(other / self.val, Ops.div, other)
       else return handle_primitive(self.val / other, Ops.div, other) end 
     end
@@ -149,7 +158,7 @@ class Reac
   end
 
   def %(other)
-    if not other.kind_of? Reac 
+    if not other.is_a? Reac 
       if @coerced then return handle_primitive(other % self.val, Ops.mod, other)
       else return handle_primitive(self.val % other, Ops.mod, other) end 
     end
@@ -191,55 +200,36 @@ class Reac
   # Event Hook 
   #------------------------------------
   
+  def self.dispose_of(reac_obj)
+    reac_obj.make_collectable
+    reac_obj = nil
+  end
+  
   def self.fire(symbol)
-    _fire(global_events, symbol)
+    Reac.store_event_in_registry(Global_Events, symbol)
   end
 
-  def self.on(symbol)
-    handler = Handler.new()
-    global_handlers[symbol].push(handler)
-    handler
+  def self.register_event_type(symbol, proc = nil, &block)
+    run_event = Reac.store_event_in_registry(Global_Event_Types, symbol)
+    run_event.when proc || block
   end
 
   def arm_event(symbol)
-    @events[symbol] = global_events[symbol]
-  end
-
-  def arm_handler(symbol)
-    @handlers[symbol] = global_handlers[symbol]
+    @events[symbol] = Global_Event_Types[symbol] 
   end
 
   def fire(symbol)
-    _fire(@events, symbol)
+    Reac.store_event_in_registry(@events, symbol)
   end
 
   def fire_once(symbol)
-    _fire(@single_fire_events, symbol)
+    Reac.store_event_in_registry(@single_fire_events, symbol)
   end
 
   def on(symbol)
     handler = Handler.new()
     @handlers[symbol].push(handler)
     handler
-  end
-
-  def make_collectable
-    #sever connection with parents
-    same_object = proc { |val| val.object_id == self.object_id }
-    if @parents.a.kind_of? Reac 
-      then @parents.a.children.delete_if &same_object end
-    if @parents.b.kind_of? Reac 
-      then @parents.b.children.delete_if &same_object end
-
-    # sever connections with children
-    @children.each do |child|
-      child.parents.remove(self)
-    end
-  end
-
-  def self.dispose(reac_obj)
-    reac_obj.make_collectable
-    reac_obj = nil
   end
   
   #Internals
@@ -283,8 +273,14 @@ class Reac
   end
 
   def self.get_value(obj)
-    if obj.kind_of? Reac then return obj.val end
+    if obj.is_a? Reac then return obj.val end
     obj
+  end
+
+  def self.store_event_in_registry(container, symbol)
+    c_event = Conditional_Event.new()
+    container[symbol] = c_event
+    c_event
   end
 
   def link(temp, other)
@@ -318,15 +314,17 @@ class Reac
   end
 
   def emit_events
+    if @handlers.keys.empty? then return end 
     emit_events_from_registry(@events)
     emit_events_from_registry(@single_fire_events)
+    emit_events_from_registry(Global_Events)
     @single_fire_events = {}
   end
 
   def emit_events_from_registry(registry)
     registry.keys.each do |key|
       event = registry[key]
-      if event.condition.nil? or event.condition.call(self.val)
+      if @handlers[key] and (event.condition.nil? or event.condition.call(self.val))
         emit(key)
       end
     end
@@ -338,45 +336,66 @@ class Reac
     end
   end
 
-  def _fire(container, symbol)
-    c_event = Conditional_Event.new()
-    container[symbol] = c_event
-    c_event
-  end
-
 end
 
 # Testing
 # -----------------------------------------------
 
+# setup
 b = Reac.new(3.0)
 c = Reac.new(4.0)
-
 a = 100 - ( (b + c) * b / c ) - 1
+
+# global event system
+Reac.fire(:global)
+a.on(:global).execute do |val|
+  p "global got #{val}"
+end
+
+# reusable event registration system
+Reac.register_event_type :reusable do |val|
+  val % 2 == 0
+end
+
+a.arm_event :reusable #shouldnt fire
+a.on(:reusable).execute do |val|
+  p "a reusable got #{val}"
+end
+
+b.arm_event :reusable
+b.on(:reusable).execute do |val|
+  p "b reusable got #{val}"
+end
+
+# regular event system
 a.fire(:trial).when(Proc.new { |val| val < 90 })
+a.on(:trial).execute(Proc.new { |val| p "Proc got #{val}"})
+a.on(:trial).execute lambda { |val| p "lambda got #{val}" }
 a.on(:trial).execute do |v|
-  p "a shrunk under 90...it is now #{v}!!!"
+  p "block got #{v}"
 end
-a.on(:trial).execute(Proc.new { p 'Proc version'})
 
+# fire once event system
 a.fire_once(:single)
+a.on(:single).execute(Proc.new { |val| p "single Proc got #{val}"})
+a.on(:single).execute lambda { |val| p "single lambda got #{val}" }
 a.on(:single).execute do |val|
-  p "single got #{val}"
+  p "single block got #{val}"
 end
-a.on(:single).execute lambda { |val| p "lambda got #{val}" }
 
-puts(a.val)
+# change dependent values
 b.val = 4.0
-puts(a.val)
 c.val = 2
-puts(a.val)
+
+# test comparison operators
 puts(a < 100)
 puts(100 > a)
 puts(a < b)
 puts(b > a)
 
-a.make_collectable
-p GC.stat
-a = nil
-GC.start
-p GC.stat 
+# p a.object_id
+# Reac.dispose_of a
+# p 'starting garbage collecter'
+# GC.start
+
+# p 'file about to end'
