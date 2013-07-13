@@ -40,9 +40,27 @@ Handler = Struct.new(:callback) do
 
 end
 
-class Reac 
+class Event_Queue 
 
-  include GC 
+  def initialize
+    @queue = []
+  end
+
+  def enqueue(event)
+    if not @queue.include? event then @queue.push(event) end
+  end
+
+  def emit_events
+    @queue.each do |emitter|
+      emitter.send(:emit_events)
+    end
+    @queue.clear
+  end
+
+end
+
+
+class Reac 
 
   #Class Variables
   #--------------------------------------------------------------------------
@@ -56,6 +74,7 @@ class Reac
 
   Global_Events = {}
   Global_Event_Types = {}
+  Global_Event_Queue = Event_Queue.new()
 
   ## have a way for people to register how they want their defined type to be evaluated
   # 
@@ -83,6 +102,14 @@ class Reac
 
   #API
   #--------------------------------------------------------------------------
+  def self.register_operation(symbol, proc = nil, &block)
+    self.send(:define_method, symbol) do |other|
+      op = proc || block
+      #handle primitives...coercion isnt possible
+      overload_operator(op.call(self.val, other.val), op, other)
+    end
+  end
+
   def initialize(val, opp = nil) 
     #wont work...this gets called AFTER the obj has been garbage collected...aka its useless
     # ObjectSpace.define_finalizer(self, proc {|id| p "#{id} was collected"}) 
@@ -114,13 +141,14 @@ class Reac
  
   def val=(val)
     @val = val
+    Global_Event_Queue.enqueue(self)
     @children.each_with_index do |child, i| 
       if (@is_root_of_update or @is_last_trace) and @children.last.equal? @children[i]
         then child.update(true) 
         else child.update(false) 
       end
     end
-    if @is_root_of_update then emit_events end
+    if @is_root_of_update then Global_Event_Queue.emit_events end
   end
 
   # Mutators---------------------------
@@ -243,7 +271,7 @@ class Reac
     if last then
       @is_last_trace = false
       @is_root_of_update = true
-      emit_events
+      # emit_events
     end
   end
 
@@ -346,10 +374,20 @@ b = Reac.new(3.0)
 c = Reac.new(4.0)
 a = 100 - ( (b + c) * b / c ) - 1
 
+# operation registration
+Reac.register_operation(:plus) do |first, second|
+  p 'registered operation got updated'
+  first + second
+end
+d = b.plus c 
+
 # global event system
 Reac.fire(:global)
 a.on(:global).execute do |val|
   p "global got #{val}"
+end
+d.on(:global).execute do |val|
+  p "registered operation global event got #{val}"
 end
 
 # reusable event registration system
@@ -384,8 +422,12 @@ a.on(:single).execute do |val|
 end
 
 # change dependent values
+p a.val #still updating but not emitting
 b.val = 4.0
+p a.val #still updating but not emitting
 c.val = 2
+p a.val #still updating but not emitting
+
 
 # test comparison operators
 puts(a < 100)
